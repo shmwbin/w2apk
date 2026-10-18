@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101c16">
+  <title>ওয়েবসাইট থেকে APK Builder</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c1511;
+      --panel: #15231c;
+      --panel-2: #1b2b23;
+      --line: #2b4034;
+      --text: #f3f6f2;
+      --muted: #aab9ae;
+      --green: #a8e76e;
+      --green-dark: #193c25;
+      --red: #ffb4a8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 78% 4%, #274c31 0, transparent 32rem),
+        radial-gradient(ellipse at 0 100%, #1b3324 0, transparent 30rem), var(--bg);
+      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .page { width: min(1080px, calc(100% - 36px)); margin: 0 auto; padding: 34px 0 56px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 42px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 750; letter-spacing: .01em; }
+    .brand-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; color: #102016; background: var(--green); }
+    .brand-icon svg { width: 25px; height: 25px; }
+    .tag { border: 1px solid #3c5a46; border-radius: 99px; color: var(--green); padding: 6px 12px; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+    .hero { max-width: 740px; margin-bottom: 28px; }
+    .eyebrow { color: var(--green); font-size: 13px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 10px 0 12px; font-size: clamp(34px, 6vw, 58px); line-height: 1.08; letter-spacing: -.045em; }
+    h1 span { color: var(--green); }
+    .hero p { max-width: 650px; margin: 0; color: var(--muted); font-size: 17px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .85fr); gap: 18px; align-items: start; }
+    .card { border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(155deg, #192820, #111b16 74%); box-shadow: 0 22px 60px #0004; }
+    .form-card { padding: clamp(20px, 4vw, 34px); }
+    .section-title { display: flex; align-items: center; gap: 11px; margin: 0 0 22px; font-size: 19px; }
+    .section-title .number { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #587a56; border-radius: 9px; color: var(--green); font-size: 14px; }
+    .field { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 680; }
+    .hint { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; }
+    input[type="text"], input[type="url"] { width: 100%; height: 48px; border: 1px solid #3a5143; border-radius: 11px; outline: none; color: var(--text); background: #0d1711; padding: 0 14px; font: inherit; transition: border-color .15s, box-shadow .15s; }
+    input[type="text"]:focus, input[type="url"]:focus { border-color: var(--green); box-shadow: 0 0 0 3px #a8e76e20; }
+    .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -6px 0 22px; padding: 5px; border: 1px solid var(--line); border-radius: 13px; background: #0d1711; }
+    .mode-option { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 11px 8px; border-radius: 9px; color: var(--muted); cursor: pointer; font-size: 13px; }
+    .mode-option:has(input:checked) { color: var(--green); background: #26392b; }
+    .mode-option input { accent-color: var(--green); }
+    .source-panel[hidden] { display: none !important; }
+    .upload {
+      position: relative; display: grid; min-height: 178px; place-items: center; border: 1px dashed #66875e; border-radius: 16px;
+      background: #0c1811; text-align: center; padding: 22px; transition: border-color .15s, background .15s;
+    }
+    .upload.dragover { border-color: var(--green); background: #213426; }
+    .upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .upload-content { pointer-events: none; }
+    .upload-icon { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 10px; border-radius: 13px; background: #24382a; color: var(--green); }
+    .upload-icon svg { width: 23px; height: 23px; }
+    .upload strong { display: block; font-size: 15px; }
+    .upload small { color: var(--muted); }
+    .file-name { color: var(--green); margin-top: 7px; font-size: 13px; overflow-wrap: anywhere; }
+    .fields-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    button { font: inherit; }
+    .submit { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; min-height: 52px; margin-top: 26px; border: 0; border-radius: 12px; color: #132016; background: var(--green); font-weight: 800; cursor: pointer; box-shadow: 0 8px 22px #94d65b25; transition: filter .15s, transform .15s; }
+    .submit:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+    .submit:disabled { opacity: .7; cursor: wait; }
+    .submit svg { width: 20px; height: 20px; }
+    .spinner { width: 18px; height: 18px; border: 2px solid #18301f55; border-top-color: #17331e; border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .status.show { display: block; }
+    .status.error { color: var(--red); background: #52271f66; border: 1px solid #873f35; }
+    .status.ok { color: #d7f7bd; background: #24402b; border: 1px solid #456c43; }
+    .side-card { padding: 24px; }
+    .side-card h2 { margin: 0 0 18px; font-size: 17px; }
+    .step { display: grid; grid-template-columns: 28px 1fr; gap: 11px; margin: 18px 0; }
+    .step b { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 8px; color: var(--green); background: #25382b; font-size: 12px; }
+    .step strong { display: block; font-size: 14px; }
+    .step p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .note { margin-top: 22px; padding: 13px; border-radius: 12px; background: #203127; color: #c7d4c8; font-size: 12px; }
+    .note strong { color: var(--green); }
+    footer { margin-top: 28px; text-align: center; color: #809287; font-size: 12px; }
+    @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } header { margin-bottom: 32px; } .side-card { order: 2; } }
+    @media (max-width: 520px) { .page { width: min(100% - 24px, 1080px); padding-top: 22px; } .tag { display: none; } .fields-row { grid-template-columns: 1fr; gap: 0; } .hero p { font-size: 15px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4M10 18h4"/></svg></span>
+        <span>ওয়েবসাইট APK Builder</span>
+      </div>
+      <span class="tag">HTML → ANDROID APP</span>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">সহজে Android অ্যাপ তৈরি করুন</div>
+      <h1>আপনার ওয়েবসাইটকে<br><span>APK বানান।</span></h1>
+      <p>ওয়েবসাইটের ZIP বা index.html আপলোড করুন, অথবা সরাসরি ওয়েবসাইটের ঠিকানা দিন। অ্যাপের নাম দিয়ে APK ডাউনলোড করুন।</p>
+    </section>
+
+    <div class="layout">
+      <form class="card form-card" id="builder-form">
+        <h2 class="section-title"><span class="number">01</span> অ্যাপের তথ্য দিন</h2>
+        <div class="mode-switch" role="radiogroup" aria-label="ওয়েবসাইট দেওয়ার পদ্ধতি">
+          <label class="mode-option"><input type="radio" name="source_type" value="upload" checked> HTML / ZIP আপলোড</label>
+          <label class="mode-option"><input type="radio" name="source_type" value="url"> Website URL</label>
+        </div>
+        <div class="source-panel" id="upload-panel">
+          <div class="field">
+            <label for="website-file">ওয়েবসাইট ফাইল</label>
+            <div class="upload" id="drop-area">
+              <input id="website-file" name="website" type="file" accept=".zip,.html,.htm" required>
+              <div class="upload-content">
+                <span class="upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg></span>
+                <strong>ফাইল এখানে টেনে আনুন</strong>
+                <small>অথবা বেছে নিতে ক্লিক করুন · HTML বা ZIP · সর্বোচ্চ ৫০ MB</small>
+                <div class="file-name" id="file-name">ZIP-এ index.html এবং CSS, JS, image ফাইল রাখুন</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="source-panel" id="url-panel" hidden>
+          <div class="field">
+            <label for="website-url">ওয়েবসাইটের ঠিকানা</label>
+            <input id="website-url" name="website_url" type="url" placeholder="https://example.com" disabled>
+            <small class="hint">এই APK চালু হলে URL-এর live website খুলবে। ইন্টারনেট সংযোগ লাগবে।</small>
+          </div>
+        </div>
+
+        <div class="fields-row">
+          <div class="field">
+            <label for="app-name">অ্যাপের নাম</label>
+            <input id="app-name" name="app_name" type="text" value="আমার ওয়েব অ্যাপ" maxlength="40" required>
+          </div>
+          <div class="field">
+            <label for="package-name">Package ID</label>
+            <input id="package-name" name="package_name" type="text" value="com.example.mywebapp" maxlength="180" required>
+            <small class="hint">উদাহরণ: com.company.myapp</small>
+          </div>
+        </div>
+
+        <button class="submit" id="submit-button" type="submit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 16v4h14v-4"/></svg>
+          APK তৈরি ও ডাউনলোড
+        </button>
+        <div class="status" id="status" role="status" aria-live="polite"></div>
+      </form>
+
+      <aside class="card side-card">
+        <h2>যেভাবে কাজ করবে</h2>
+        <div class="step"><b>1</b><div><strong>ফাইল বা Website URL দিন</strong><p>ZIP, index.html আপলোড করুন অথবা live URL লিখুন।</p></div></div>
+        <div class="step"><b>2</b><div><strong>অ্যাপের পরিচয় দিন</strong><p>অ্যাপের নাম এবং একটি অনন্য Package ID লিখুন।</p></div></div>
+        <div class="step"><b>3</b><div><strong>APK ডাউনলোড করুন</strong><p>তৈরি হওয়া APK Android ফোনে ইনস্টল করতে পারবেন।</p></div></div>
+        <div class="note"><strong>ZIP ফাইল:</strong> index.html ZIP-এর একদম root-এ রাখুন। URL দিলে APK live website দেখাবে; offline-এ চলবে না।</div>
+      </aside>
+    </div>
+    <footer>আপনার ওয়েবসাইটকে Android অ্যাপে রূপান্তর করুন</footer>
+  </main>
+  <script>
+    const form = document.querySelector('#builder-form');
+    const fileInput = document.querySelector('#website-file');
+    const dropArea = document.querySelector('#drop-area');
+    const fileName = document.querySelector('#file-name');
+    const button = document.querySelector('#submit-button');
+    const statusBox = document.querySelector('#status');
+    const urlInput = document.querySelector('#website-url');
+    const uploadPanel = document.querySelector('#upload-panel');
+    const urlPanel = document.querySelector('#url-panel');
+
+    function updateSourceMode() {
+      const isUpload = document.querySelector('input[name="source_type"]:checked').value === 'upload';
+      uploadPanel.hidden = !isUpload;
+      urlPanel.hidden = isUpload;
+      fileInput.disabled = !isUpload;
+      fileInput.required = isUpload;
+      urlInput.disabled = isUpload;
+      urlInput.required = !isUpload;
+    }
+    document.querySelectorAll('input[name="source_type"]').forEach((radio) => radio.addEventListener('change', updateSourceMode));
+    updateSourceMode();
+
+    function showFile(file) {
+      if (file) {
+        fileName.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+        if (!document.querySelector('#app-name').dataset.edited) {
+          document.querySelector('#app-name').value = file.name.replace(/\.(zip|html?)$/i, '').replace(/[-_]+/g, ' ') || 'আমার ওয়েব অ্যাপ';
+        }
+      } else {
+        fileName.textContent = 'ZIP-এ index.html এবং CSS, JS, image ফাইল রাখুন';
+      }
+    }
+    fileInput.addEventListener('change', () => showFile(fileInput.files[0]));
+    document.querySelector('#app-name').addEventListener('input', (event) => { event.target.dataset.edited = 'true'; });
+    for (const eventName of ['dragenter', 'dragover']) {
+      dropArea.addEventListener(eventName, (event) => { event.preventDefault(); dropArea.classList.add('dragover'); });
+    }
+    for (const eventName of ['dragleave', 'drop']) {
+      dropArea.addEventListener(eventName, (event) => { event.preventDefault(); dropArea.classList.remove('dragover'); });
+    }
+    dropArea.addEventListener('drop', (event) => {
+      const file = event.dataTransfer.files[0];
+      if (!file) return;
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      fileInput.files = transfer.files;
+      showFile(file);
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      statusBox.className = 'status';
+      const isUpload = document.querySelector('input[name="source_type"]:checked').value === 'upload';
+      if (isUpload && !fileInput.files[0]) return;
+      const data = new FormData(form);
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner"></span> APK তৈরি হচ্ছে… কিছুক্ষণ অপেক্ষা করুন';
+      try {
+        const response = await fetch('/api/build', { method: 'POST', body: data });
+        if (!response.ok) {
+          const message = await response.text();
+          let details = message;
+          try { details = JSON.parse(message).detail || message; } catch (_) {}
+          throw new Error(details);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${document.querySelector('#app-name').value.trim().replace(/[^\p{L}\p{N}_-]+/gu, '-') || 'website-app'}.apk`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        statusBox.textContent = 'APK তৈরি হয়েছে। ডাউনলোড শুরু হয়েছে।';
+        statusBox.className = 'status show ok';
+      } catch (error) {
+        statusBox.textContent = `APK তৈরি করা যায়নি।\n${error.message}`;
+        statusBox.className = 'status show error';
+      } finally {
+        button.disabled = false;
+        button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 16v4h14v-4"/></svg> APK তৈরি ও ডাউনলোড';
+      }
+    });
+  </script>
+</body>
+</html>
