@@ -1,255 +1,335 @@
-<!doctype html>
-<html lang="bn">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101c16">
-  <title>ওয়েবসাইট থেকে APK Builder - SHM Digital Hub</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #0c1511;
-      --panel: #15231c;
-      --panel-2: #1b2b23;
-      --line: #2b4034;
-      --text: #f3f6f2;
-      --muted: #aab9ae;
-      --green: #a8e76e;
-      --green-dark: #193c25;
-      --red: #ffb4a8;
+from __future__ import annotations
+
+import asyncio
+import base64
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import zipfile
+from pathlib import Path, PurePosixPath
+from typing import Annotated
+from urllib.parse import urlsplit
+from xml.sax.saxutils import escape
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
+
+
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "50")) * 1024 * 1024
+MAX_EXTRACTED_BYTES = int(os.getenv("MAX_EXTRACTED_MB", "100")) * 1024 * 1024
+MAX_ARCHIVE_FILES = 1000
+BUILD_TIMEOUT_SECONDS = int(os.getenv("BUILD_TIMEOUT_SECONDS", "600"))
+PACKAGE_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*){1,7}$")
+BUILD_LOCK = asyncio.Semaphore(1)
+
+app = FastAPI(title="Website to APK Builder")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home() -> HTMLResponse:
+    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+
+
+def _write_android_project(project_dir: Path, app_name: str, package_name: str, start_url: str | None = None) -> None:
+    package_path = Path(*package_name.split("."))
+    source_dir = project_dir / "app" / "src" / "main" / "java" / package_path
+    assets_dir = project_dir / "app" / "src" / "main" / "assets"
+    values_dir = project_dir / "app" / "src" / "main" / "res" / "values"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    values_dir.mkdir(parents=True, exist_ok=True)
+
+    (project_dir / "settings.gradle").write_text(
+        """pluginManagement {
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = 'WebsiteApk'
+include ':app'
+""",
+        encoding="utf-8",
+    )
+    (project_dir / "build.gradle").write_text(
+        "plugins { id 'com.android.application' version '8.9.2' apply false }\n",
+        encoding="utf-8",
+    )
+    (project_dir / "gradle.properties").write_text(
+        "org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8\n"
+        "android.useAndroidX=true\n",
+        encoding="utf-8",
+    )
+    (project_dir / "app" / "build.gradle").write_text(
+        """plugins { id 'com.android.application' }
+
+android {
+    namespace '%(package)s'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId '%(package)s'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
     }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      color: var(--text);
-      background:
-        radial-gradient(ellipse at 78% 4%, #274c31 0, transparent 32rem),
-        radial-gradient(ellipse at 0 100%, #1b3324 0, transparent 30rem), var(--bg);
-      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
-    }
-    .page { width: min(1080px, calc(100% - 36px)); margin: 0 auto; padding: 34px 0 56px; }
-    header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 42px; }
-    .brand { display: flex; align-items: center; gap: 12px; font-weight: 750; letter-spacing: .01em; }
-    .brand-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; color: #102016; background: var(--green); }
-    .brand-icon svg { width: 25px; height: 25px; }
-    .tag { border: 1px solid #3c5a46; border-radius: 99px; color: var(--green); padding: 6px 12px; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
-    .hero { max-width: 740px; margin-bottom: 28px; }
-    .eyebrow { color: var(--green); font-size: 13px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-    h1 { margin: 10px 0 12px; font-size: clamp(34px, 6vw, 58px); line-height: 1.08; letter-spacing: -.045em; }
-    h1 span { color: var(--green); }
-    .hero p { max-width: 650px; margin: 0; color: var(--muted); font-size: 17px; }
-    .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .85fr); gap: 18px; align-items: start; }
-    .card { border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(155deg, #192820, #111b16 74%); box-shadow: 0 22px 60px #0004; }
-    .form-card { padding: clamp(20px, 4vw, 34px); }
-    .section-title { display: flex; align-items: center; gap: 11px; margin: 0 0 22px; font-size: 19px; }
-    .section-title .number { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #587a56; border-radius: 9px; color: var(--green); font-size: 14px; }
-    .field { margin-bottom: 20px; }
-    label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 680; }
-    .hint { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; }
-    input[type="text"], input[type="url"] { width: 100%; height: 48px; border: 1px solid #3a5143; border-radius: 11px; outline: none; color: var(--text); background: #0d1711; padding: 0 14px; font: inherit; transition: border-color .15s, box-shadow .15s; }
-    input[type="text"]:focus, input[type="url"]:focus { border-color: var(--green); box-shadow: 0 0 0 3px #a8e76e20; }
-    .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -6px 0 22px; padding: 5px; border: 1px solid var(--line); border-radius: 13px; background: #0d1711; }
-    .mode-option { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 11px 8px; border-radius: 9px; color: var(--muted); cursor: pointer; font-size: 13px; }
-    .mode-option:has(input:checked) { color: var(--green); background: #26392b; }
-    .mode-option input { accent-color: var(--green); }
-    .source-panel[hidden] { display: none !important; }
-    .upload {
-      position: relative; display: grid; min-height: 178px; place-items: center; border: 1px dashed #66875e; border-radius: 16px;
-      background: #0c1811; text-align: center; padding: 22px; transition: border-color .15s, background .15s;
-    }
-    .upload.dragover { border-color: var(--green); background: #213426; }
-    .upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-    .upload-content { pointer-events: none; }
-    .upload-icon { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 10px; border-radius: 13px; background: #24382a; color: var(--green); }
-    .upload-icon svg { width: 23px; height: 23px; }
-    .upload strong { display: block; font-size: 15px; }
-    .upload small { color: var(--muted); }
-    .file-name { color: var(--green); margin-top: 7px; font-size: 13px; overflow-wrap: anywhere; }
-    .fields-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    button { font: inherit; }
-    .submit { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; min-height: 52px; margin-top: 26px; border: 0; border-radius: 12px; color: #132016; background: var(--green); font-weight: 800; cursor: pointer; box-shadow: 0 8px 22px #94d65b25; transition: filter .15s, transform .15s; }
-    .submit:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
-    .submit:disabled { opacity: .7; cursor: wait; }
-    .submit svg { width: 20px; height: 20px; }
-    .spinner { width: 18px; height: 18px; border: 2px solid #18301f55; border-top-color: #17331e; border-radius: 50%; animation: spin .8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .status { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .status.show { display: block; }
-    .status.error { color: var(--red); background: #52271f66; border: 1px solid #873f35; }
-    .status.ok { color: #d7f7bd; background: #24402b; border: 1px solid #456c43; }
-    .side-card { padding: 24px; }
-    .side-card h2 { margin: 0 0 18px; font-size: 17px; }
-    .step { display: grid; grid-template-columns: 28px 1fr; gap: 11px; margin: 18px 0; }
-    .step b { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 8px; color: var(--green); background: #25382b; font-size: 12px; }
-    .step strong { display: block; font-size: 14px; }
-    .step p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
-    .note { margin-top: 22px; padding: 13px; border-radius: 12px; background: #203127; color: #c7d4c8; font-size: 12px; }
-    .note strong { color: var(--green); }
-    footer { margin-top: 28px; text-align: center; color: #809287; font-size: 12px; }
-    @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } header { margin-bottom: 32px; } .side-card { order: 2; } }
-    @media (max-width: 520px) { .page { width: min(100% - 24px, 1080px); padding-top: 22px; } .tag { display: none; } .fields-row { grid-template-columns: 1fr; gap: 0; } .hero p { font-size: 15px; } }
-  </style>
-</head>
-<body>
-  <main class="page">
-    <header>
-      <div class="brand">
-        <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4M10 18h4"/></svg></span>
-        <span>ওয়েবসাইট APK Builder</span>
-      </div>
-      <span class="tag">HTML / URL → ANDROID APP</span>
-    </header>
+}
 
-    <section class="hero">
-      <div class="eyebrow">সহজে Android অ্যাপ তৈরি করুন</div>
-      <h1>আপনার ওয়েবসাইটকে<br><span>APK বানান নিমিষেই।</span></h1>
-      <p>ওয়েবসাইটের ZIP বা index.html ফাইল আপলোড করুন, অথবা সরাসরি লাইভ ওয়েবসাইটের URL দিন। অ্যাপের নাম ও প্যাকেজ আইডি দিয়ে ইনস্টাঞ্জ APK ডাউনলোড করুন।</p>
-    </section>
+dependencies {
+    implementation 'androidx.webkit:webkit:1.15.0'
+}
+""" % {"package": package_name},
+        encoding="utf-8",
+    )
+    (project_dir / "app" / "src" / "main" / "AndroidManifest.xml").write_text(
+        """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:usesCleartextTraffic="true">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+""",
+        encoding="utf-8",
+    )
+    (values_dir / "strings.xml").write_text(
+        f'<resources><string name="app_name">{escape(app_name)}</string></resources>\n',
+        encoding="utf-8",
+    )
+    if start_url is None:
+        initial_load = 'webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");'
+    else:
+        encoded_url = base64.b64encode(start_url.encode("utf-8")).decode("ascii")
+        initial_load = (
+            'webView.loadUrl(new String(android.util.Base64.decode("'
+            + encoded_url
+            + '", android.util.Base64.DEFAULT), java.nio.charset.StandardCharsets.UTF-8));'
+        )
 
-    <div class="layout">
-      <form class="card form-card" id="builder-form">
-        <h2 class="section-title"><span class="number">01</span> অ্যাপের তথ্য দিন</h2>
-        <div class="mode-switch" role="radiogroup" aria-label="ওয়েবসাইট দেওয়ার পদ্ধতি">
-          <label class="mode-option"><input type="radio" name="source_type" value="upload" checked> HTML / ZIP ফাইল</label>
-          <label class="mode-option"><input type="radio" name="source_type" value="url"> Website URL</label>
-        </div>
-        <div class="source-panel" id="upload-panel">
-          <div class="field">
-            <label for="website-file">ওয়েবসাইট ফাইল (ZIP বা HTML)</label>
-            <div class="upload" id="drop-area">
-              <input id="website-file" name="website" type="file" accept=".zip,.html,.htm" required>
-              <div class="upload-content">
-                <span class="upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg></span>
-                <strong>ফাইল এখানে টেনে আনুন</strong>
-                <small>অথবা বেছে নিতে ক্লিক করুন · সর্বোচ্চ ৫০ MB</small>
-                <div class="file-name" id="file-name">ZIP-এ index.html এবং প্রয়োজনীয় অ্যাসেটস রাখুন</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="source-panel" id="url-panel" hidden>
-          <div class="field">
-            <label for="website-url">ওয়েবসাইটের লাইভ ঠিকানা (URL)</label>
-            <input id="website-url" name="website_url" type="url" placeholder="https://example.com" disabled>
-            <small class="hint">এই APK ওপেন হলে সরাসরি আপনার লাইভ ওয়েবসাইট লোড হবে।</small>
-          </div>
-        </div>
+    (source_dir / "MainActivity.java").write_text(
+        f"""package {package_name};
 
-        <div class="fields-row">
-          <div class="field">
-            <label for="app-name">অ্যাপের নাম</label>
-            <input id="app-name" name="app_name" type="text" value="আমার ওয়েব অ্যাপ" maxlength="40" required>
-          </div>
-          <div class="field">
-            <label for="package-name">Package ID</label>
-            <input id="package-name" name="package_name" type="text" value="com.shm.webapp" maxlength="180" required>
-            <small class="hint">যেমন: com.domain.appname</small>
-          </div>
-        </div>
+import android.app.Activity;
+import android.os.Bundle;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.net.Uri;
+import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewClientCompat;
 
-        <button class="submit" id="submit-button" type="submit">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 16v4h14v-4"/></svg>
-          APK তৈরি ও ডাউনলোড করুন
-        </button>
-        <div class="status" id="status" role="status" aria-live="polite"></div>
-      </form>
+public class MainActivity extends Activity {{
+    private WebView webView;
 
-      <aside class="card side-card">
-        <h2>নির্দেশিকা</h2>
-        <div class="step"><b>1</b><div><strong>সোর্স সিলেক্ট করুন</strong><p>ZIP ফাইল বা সরাসরি লাইভ ওয়েবসাইটের URL প্রদান করুন।</p></div></div>
-        <div class="step"><b>2</b><div><strong>নাম ও আইডি দিন</strong><p>আপনার পছন্দের অ্যাপের নাম ও ইউনিক প্যাকেজ আইডি লিখুন।</p></div></div>
-        <div class="step"><b>3</b><div><strong>ডাউনলোড করুন</strong><p>বিল্ড সম্পন্ন হওয়ার পর সরাসরি APK ফাইল ডাউনলোড করে নিন।</p></div></div>
-        <div class="note"><strong>পরামর্শ:</strong> ZIP ফাইল আপলোড করার সময় খেয়াল রাখবেন যেন রুটে <code>index.html</code> ফাইলটি উপস্থিত থাকে।</div>
-      </aside>
-    </div>
-    <footer>শাদিকুল হক মোল্যা · SHM Digital Hub</footer>
-  </main>
-  <script>
-    const form = document.querySelector('#builder-form');
-    const fileInput = document.querySelector('#website-file');
-    const dropArea = document.querySelector('#drop-area');
-    const fileName = document.querySelector('#file-name');
-    const button = document.querySelector('#submit-button');
-    const statusBox = document.querySelector('#status');
-    const urlInput = document.querySelector('#website-url');
-    const uploadPanel = document.querySelector('#upload-panel');
-    const urlPanel = document.querySelector('#url-panel');
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {{
+        super.onCreate(savedInstanceState);
+        webView = new WebView(this);
+        setContentView(webView);
 
-    function updateSourceMode() {
-      const isUpload = document.querySelector('input[name="source_type"]:checked').value === 'upload';
-      uploadPanel.hidden = !isUpload;
-      urlPanel.hidden = isUpload;
-      fileInput.disabled = !isUpload;
-      fileInput.required = isUpload;
-      urlInput.disabled = isUpload;
-      urlInput.required = !isUpload;
-    }
-    document.querySelectorAll('input[name="source_type"]').forEach((radio) => radio.addEventListener('change', updateSourceMode));
-    updateSourceMode();
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
+        webView.setWebViewClient(new WebViewClientCompat() {{
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {{
+                return assetLoader.shouldInterceptRequest(request.getUrl());
+            }}
 
-    function showFile(file) {
-      if (file) {
-        fileName.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
-        if (!document.querySelector('#app-name').dataset.edited) {
-          document.querySelector('#app-name').value = file.name.replace(/\.(zip|html?)$/i, '').replace(/[-_]+/g, ' ') || 'আমার ওয়েব অ্যাপ';
-        }
-      } else {
-        fileName.textContent = 'ZIP-এ index.html এবং প্রয়োজনীয় অ্যাসেটস রাখুন';
-      }
-    }
-    fileInput.addEventListener('change', () => showFile(fileInput.files[0]));
-    document.querySelector('#app-name').addEventListener('input', (event) => { event.target.dataset.edited = 'true'; });
-    for (const eventName of ['dragenter', 'dragover']) {
-      dropArea.addEventListener(eventName, (event) => { event.preventDefault(); dropArea.classList.add('dragover'); });
-    }
-    for (const eventName of ['dragleave', 'drop']) {
-      dropArea.addEventListener(eventName, (event) => { event.preventDefault(); dropArea.classList.remove('dragover'); });
-    }
-    dropArea.addEventListener('drop', (event) => {
-      const file = event.dataTransfer.files[0];
-      if (!file) return;
-      const transfer = new DataTransfer();
-      transfer.items.add(file);
-      fileInput.files = transfer.files;
-      showFile(file);
-    });
+            @Override
+            @SuppressWarnings("deprecation")
+            public WebResourceResponse shouldInterceptRequest(WebView view, String url) {{
+                return assetLoader.shouldInterceptRequest(Uri.parse(url));
+            }}
+        }});
+        webView.setWebChromeClient(new WebChromeClient());
+        {initial_load}
+    }}
 
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      statusBox.className = 'status';
-      const isUpload = document.querySelector('input[name="source_type"]:checked').value === 'upload';
-      if (isUpload && !fileInput.files[0]) return;
-      const data = new FormData(form);
-      button.disabled = true;
-      button.innerHTML = '<span class="spinner"></span> APK তৈরি হচ্ছে… অনুগ্রহ করে অপেক্ষা করুন';
-      try {
-        const response = await fetch('/api/build', { method: 'POST', body: data });
-        if (!response.ok) {
-          const message = await response.text();
-          let details = message;
-          try { details = JSON.parse(message).detail || message; } catch (_) {}
-          throw new Error(details);
-        }
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${document.querySelector('#app-name').value.trim().replace(/[^\p{L}\p{N}_-]+/gu, '-') || 'website-app'}.apk`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
-        statusBox.textContent = 'সফলভাবে APK তৈরি হয়েছে! আপনার ডাউনলোড শুরু হয়ে গেছে।';
-        statusBox.className = 'status show ok';
-      } catch (error) {
-        statusBox.textContent = `APK তৈরি করা সম্ভব হয়নি।\n${error.message}`;
-        statusBox.className = 'status show error';
-      } finally {
-        button.disabled = false;
-        button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 16v4h14v-4"/></svg> APK তৈরি ও ডাউনলোড করুন';
-      }
-    });
-  </script>
-</body>
-</html>
+    @Override
+    public void onBackPressed() {{
+        if (webView != null && webView.canGoBack()) {{
+            webView.goBack();
+        }} else {{
+            super.onBackPressed();
+        }}
+    }}
+}}
+""",
+        encoding="utf-8",
+    )
+
+
+async def _save_upload(upload: UploadFile, destination: Path) -> int:
+    size = 0
+    with destination.open("wb") as output:
+        while chunk := await upload.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_UPLOAD_BYTES:
+                raise HTTPException(413, f"Upload is too large. Maximum is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
+            output.write(chunk)
+    if size == 0:
+        raise HTTPException(400, "The uploaded file is empty.")
+    return size
+
+
+def _copy_website(upload_path: Path, original_name: str, assets_dir: Path) -> None:
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    suffix = Path(original_name).suffix.lower()
+    if suffix in {".html", ".htm"}:
+        shutil.copyfile(upload_path, assets_dir / "index.html")
+        return
+    if suffix != ".zip" or not zipfile.is_zipfile(upload_path):
+        raise HTTPException(400, "Upload one .html file or a .zip containing index.html and its website assets.")
+
+    try:
+        with zipfile.ZipFile(upload_path) as archive:
+            entries = archive.infolist()
+            if len(entries) > MAX_ARCHIVE_FILES:
+                raise HTTPException(400, f"ZIP has too many files (maximum {MAX_ARCHIVE_FILES}).")
+
+            total_uncompressed = 0
+            safe_entries: list[tuple[zipfile.ZipInfo, PurePosixPath]] = []
+            for info in entries:
+                raw_name = info.filename.replace("\\", "/")
+                relative = PurePosixPath(raw_name)
+                mode = (info.external_attr >> 16) & 0o170000
+                if relative.is_absolute() or ".." in relative.parts or mode == 0o120000:
+                    raise HTTPException(400, "ZIP contains an unsafe path or symbolic link.")
+                if info.is_dir():
+                    continue
+                total_uncompressed += info.file_size
+                if total_uncompressed > MAX_EXTRACTED_BYTES:
+                    raise HTTPException(413, f"Unpacked website is too large. Maximum is {MAX_EXTRACTED_BYTES // (1024 * 1024)} MB.")
+                safe_entries.append((info, relative))
+
+            if not any(path.as_posix() == "index.html" for _, path in safe_entries):
+                raise HTTPException(400, "ZIP must contain index.html at its root, alongside any CSS, JS, and image files.")
+
+            for info, relative in safe_entries:
+                target = (assets_dir / Path(*relative.parts)).resolve()
+                if assets_dir.resolve() not in target.parents:
+                    raise HTTPException(400, "ZIP contains an unsafe path.")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(info) as source, target.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(400, "That ZIP file could not be opened.") from exc
+
+
+def _validate_website_url(raw_url: str) -> str:
+    value = raw_url.strip()
+    if not value or len(value) > 2048 or any(ord(char) < 32 for char in value) or "\\" in value:
+        raise HTTPException(400, "Enter a valid website address beginning with https:// or http://.")
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        parsed.port
+    except ValueError as exc:
+        raise HTTPException(400, "Enter a valid website address.") from exc
+    if parsed.scheme.lower() not in {"https", "http"} or not hostname or parsed.username or parsed.password:
+        raise HTTPException(400, "Website address must use http:// or https:// and cannot contain a username or password.")
+    try:
+        hostname.encode("idna")
+    except UnicodeError as exc:
+        raise HTTPException(400, "Website address has an invalid domain name.") from exc
+    return value
+
+
+@app.post("/api/build")
+async def build_apk(
+    app_name: Annotated[str, Form(min_length=1, max_length=40)],
+    package_name: Annotated[str, Form(min_length=3, max_length=180)],
+    source_type: Annotated[str, Form()] = "upload",
+    website: Annotated[UploadFile | None, File(description="A single HTML file or a ZIP website")] = None,
+    website_url: Annotated[str | None, Form()] = None,
+) -> FileResponse:
+    app_name = app_name.strip()
+    package_name = package_name.strip()
+    if not app_name:
+        raise HTTPException(400, "Enter an app name.")
+    if not PACKAGE_PATTERN.fullmatch(package_name):
+        raise HTTPException(400, "Package ID must look like com.example.myapp and use letters, numbers, or underscores.")
+    if source_type not in {"upload", "url"}:
+        raise HTTPException(400, "Choose either file upload or website URL.")
+    start_url: str | None = None
+    if source_type == "upload" and website is None:
+        raise HTTPException(400, "Choose an HTML file or website ZIP to upload.")
+    if source_type == "url":
+        if not website_url:
+            raise HTTPException(400, "Enter the website address.")
+        start_url = _validate_website_url(website_url)
+    if shutil.which("gradle") is None:
+        raise HTTPException(503, "Android build tools are not installed on this server. See README.md for setup.")
+
+    await BUILD_LOCK.acquire()
+    job_dir: Path | None = None
+    try:
+        job_dir = Path(tempfile.mkdtemp(prefix="website-apk-"))
+        project_dir = job_dir / "android"
+        _write_android_project(project_dir, app_name, package_name, start_url=start_url)
+        if source_type == "upload":
+            assert website is not None
+            upload_path = job_dir / "upload.bin"
+            await _save_upload(website, upload_path)
+            _copy_website(upload_path, website.filename or "", project_dir / "app" / "src" / "main" / "assets")
+
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["gradle", "--no-daemon", "--stacktrace", "assembleDebug"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=BUILD_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise HTTPException(504, "APK build timed out. Try a smaller website or increase BUILD_TIMEOUT_SECONDS.") from exc
+
+        apk_path = project_dir / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+        if result.returncode != 0 or not apk_path.exists():
+            details = (result.stderr or result.stdout or "Unknown Gradle error")[-5000:]
+            raise HTTPException(500, "APK build failed. Check that JDK 17 and Android SDK Platform 35 are installed.\n\n" + details)
+
+        filename = re.sub(r"[^A-Za-z0-9_-]+", "-", app_name).strip("-") or "website-app"
+        return FileResponse(
+            apk_path,
+            media_type="application/vnd.android.package-archive",
+            filename=f"{filename}.apk",
+            background=BackgroundTask(shutil.rmtree, job_dir, ignore_errors=True),
+        )
+    except Exception:
+        if job_dir is not None:
+            shutil.rmtree(job_dir, ignore_errors=True)
+        raise
+    finally:
+        BUILD_LOCK.release()
