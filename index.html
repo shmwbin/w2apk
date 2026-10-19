@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101c16">
-  <title>ওয়েবসাইট থেকে APK Builder</title>
+  <title>ওয়েবসাইট থেকে APK Builder - SHM Digital Hub</title>
   <style>
     :root {
       color-scheme: dark;
@@ -98,41 +98,41 @@
         <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4M10 18h4"/></svg></span>
         <span>ওয়েবসাইট APK Builder</span>
       </div>
-      <span class="tag">HTML → ANDROID APP</span>
+      <span class="tag">HTML / URL → ANDROID APP</span>
     </header>
 
     <section class="hero">
       <div class="eyebrow">সহজে Android অ্যাপ তৈরি করুন</div>
-      <h1>আপনার ওয়েবসাইটকে<br><span>APK বানান।</span></h1>
-      <p>ওয়েবসাইটের ZIP বা index.html আপলোড করুন, অথবা সরাসরি ওয়েবসাইটের ঠিকানা দিন। অ্যাপের নাম দিয়ে APK ডাউনলোড করুন।</p>
+      <h1>আপনার ওয়েবসাইটকে<br><span>APK বানান নিমিষেই।</span></h1>
+      <p>ওয়েবসাইটের ZIP বা index.html ফাইল আপলোড করুন, অথবা সরাসরি লাইভ ওয়েবসাইটের URL দিন। অ্যাপের নাম ও প্যাকেজ আইডি দিয়ে ইনস্টাঞ্জ APK ডাউনলোড করুন।</p>
     </section>
 
     <div class="layout">
       <form class="card form-card" id="builder-form">
         <h2 class="section-title"><span class="number">01</span> অ্যাপের তথ্য দিন</h2>
         <div class="mode-switch" role="radiogroup" aria-label="ওয়েবসাইট দেওয়ার পদ্ধতি">
-          <label class="mode-option"><input type="radio" name="source_type" value="upload" checked> HTML / ZIP আপলোড</label>
+          <label class="mode-option"><input type="radio" name="source_type" value="upload" checked> HTML / ZIP ফাইল</label>
           <label class="mode-option"><input type="radio" name="source_type" value="url"> Website URL</label>
         </div>
         <div class="source-panel" id="upload-panel">
           <div class="field">
-            <label for="website-file">ওয়েবসাইট ফাইল</label>
+            <label for="website-file">ওয়েবসাইট ফাইল (ZIP বা HTML)</label>
             <div class="upload" id="drop-area">
               <input id="website-file" name="website" type="file" accept=".zip,.html,.htm" required>
               <div class="upload-content">
                 <span class="upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg></span>
                 <strong>ফাইল এখানে টেনে আনুন</strong>
-                <small>অথবা বেছে নিতে ক্লিক করুন · HTML বা ZIP · সর্বোচ্চ ৫০ MB</small>
-                <div class="file-name" id="file-name">ZIP-এ index.html এবং CSS, JS, image ফাইল রাখুন</div>
+                <small>অথবা বেছে নিতে ক্লিক করুন · সর্বোচ্চ ৫০ MB</small>
+                <div class="file-name" id="file-name">ZIP-এ index.html এবং প্রয়োজনীয় অ্যাসেটস রাখুন</div>
               </div>
             </div>
           </div>
         </div>
         <div class="source-panel" id="url-panel" hidden>
           <div class="field">
-            <label for="website-url">ওয়েবসাইটের ঠিকানা</label>
+            <label for="website-url">ওয়েবসাইটের লাইভ ঠিকানা (URL)</label>
             <input id="website-url" name="website_url" type="url" placeholder="https://example.com" disabled>
-            <small class="hint">এই APK চালু হলে URL-এর live website খুলবে। ইন্টারনেট সংযোগ লাগবে।</small>
+            <small class="hint">এই APK ওপেন হলে সরাসরি আপনার লাইভ ওয়েবসাইট লোড হবে।</small>
           </div>
         </div>
 
@@ -143,27 +143,27 @@
           </div>
           <div class="field">
             <label for="package-name">Package ID</label>
-            <input id="package-name" name="package_name" type="text" value="com.example.mywebapp" maxlength="180" required>
-            <small class="hint">উদাহরণ: com.company.myapp</small>
+            <input id="package-name" name="package_name" type="text" value="com.shm.webapp" maxlength="180" required>
+            <small class="hint">যেমন: com.domain.appname</small>
           </div>
         </div>
 
         <button class="submit" id="submit-button" type="submit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 16v4h14v-4"/></svg>
-          APK তৈরি ও ডাউনলোড
+          APK তৈরি ও ডাউনলোড করুন
         </button>
         <div class="status" id="status" role="status" aria-live="polite"></div>
       </form>
 
       <aside class="card side-card">
-        <h2>যেভাবে কাজ করবে</h2>
-        <div class="step"><b>1</b><div><strong>ফাইল বা Website URL দিন</strong><p>ZIP, index.html আপলোড করুন অথবা live URL লিখুন।</p></div></div>
-        <div class="step"><b>2</b><div><strong>অ্যাপের পরিচয় দিন</strong><p>অ্যাপের নাম এবং একটি অনন্য Package ID লিখুন।</p></div></div>
-        <div class="step"><b>3</b><div><strong>APK ডাউনলোড করুন</strong><p>তৈরি হওয়া APK Android ফোনে ইনস্টল করতে পারবেন।</p></div></div>
-        <div class="note"><strong>ZIP ফাইল:</strong> index.html ZIP-এর একদম root-এ রাখুন। URL দিলে APK live website দেখাবে; offline-এ চলবে না।</div>
+        <h2>নির্দেশিকা</h2>
+        <div class="step"><b>1</b><div><strong>সোর্স সিলেক্ট করুন</strong><p>ZIP ফাইল বা সরাসরি লাইভ ওয়েবসাইটের URL প্রদান করুন।</p></div></div>
+        <div class="step"><b>2</b><div><strong>নাম ও আইডি দিন</strong><p>আপনার পছন্দের অ্যাপের নাম ও ইউনিক প্যাকেজ আইডি লিখুন।</p></div></div>
+        <div class="step"><b>3</b><div><strong>ডাউনলোড করুন</strong><p>বিল্ড সম্পন্ন হওয়ার পর সরাসরি APK ফাইল ডাউনলোড করে নিন।</p></div></div>
+        <div class="note"><strong>পরামর্শ:</strong> ZIP ফাইল আপলোড করার সময় খেয়াল রাখবেন যেন রুটে <code>index.html</code> ফাইলটি উপস্থিত থাকে।</div>
       </aside>
     </div>
-    <footer>আপনার ওয়েবসাইটকে Android অ্যাপে রূপান্তর করুন</footer>
+    <footer>শাদিকুল হক মোল্যা · SHM Digital Hub</footer>
   </main>
   <script>
     const form = document.querySelector('#builder-form');
@@ -195,7 +195,7 @@
           document.querySelector('#app-name').value = file.name.replace(/\.(zip|html?)$/i, '').replace(/[-_]+/g, ' ') || 'আমার ওয়েব অ্যাপ';
         }
       } else {
-        fileName.textContent = 'ZIP-এ index.html এবং CSS, JS, image ফাইল রাখুন';
+        fileName.textContent = 'ZIP-এ index.html এবং প্রয়োজনীয় অ্যাসেটস রাখুন';
       }
     }
     fileInput.addEventListener('change', () => showFile(fileInput.files[0]));
@@ -222,7 +222,7 @@
       if (isUpload && !fileInput.files[0]) return;
       const data = new FormData(form);
       button.disabled = true;
-      button.innerHTML = '<span class="spinner"></span> APK তৈরি হচ্ছে… কিছুক্ষণ অপেক্ষা করুন';
+      button.innerHTML = '<span class="spinner"></span> APK তৈরি হচ্ছে… অনুগ্রহ করে অপেক্ষা করুন';
       try {
         const response = await fetch('/api/build', { method: 'POST', body: data });
         if (!response.ok) {
@@ -240,14 +240,14 @@
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        statusBox.textContent = 'APK তৈরি হয়েছে। ডাউনলোড শুরু হয়েছে।';
+        statusBox.textContent = 'সফলভাবে APK তৈরি হয়েছে! আপনার ডাউনলোড শুরু হয়ে গেছে।';
         statusBox.className = 'status show ok';
       } catch (error) {
-        statusBox.textContent = `APK তৈরি করা যায়নি।\n${error.message}`;
+        statusBox.textContent = `APK তৈরি করা সম্ভব হয়নি।\n${error.message}`;
         statusBox.className = 'status show error';
       } finally {
         button.disabled = false;
-        button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 16v4h14v-4"/></svg> APK তৈরি ও ডাউনলোড';
+        button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 16v4h14v-4"/></svg> APK তৈরি ও ডাউনলোড করুন';
       }
     });
   </script>
